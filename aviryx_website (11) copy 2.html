@@ -1,0 +1,45 @@
+8385477878 is your bot’s numeric ID.
+
+You can confirm it anytime by visiting:
+```
+https://api.telegram.org/bot8385477878:AAGEaDMEstr8Abs9fwTCK0IMZgqJne6fflI/getMe
+```
+It should return JSON like:
+```json
+{
+  "ok": true,
+  "result": {
+    "id": 8385477878,
+    "is_bot": true,
+    "first_name": "YourBotName",
+    "username": "FLYWITHAVXBOT"
+  }
+}
+```
+
+---
+
+**Tip:** Add a `/myid` command to your bot so any user can see their own ID.
+
+**node-telegram-bot-api:**
+```js
+bot.onText(/^\/myid$/, (msg) => {
+  const uid = msg.from?.id;
+  const uname = msg.from?.username ? '@' + msg.from.username : msg.from?.first_name || 'user';
+  bot.sendMessage(msg.chat.id, `🆔 Your Telegram ID: ${uid}\nUser: ${uname}`);
+});
+```
+
+**Telegraf:**
+```js
+bot.command('myid', (ctx) => {
+  const uid = ctx.from?.id;
+  const uname = ctx.from?.username ? '@' + ctx.from.username : ctx.from?.first_name || 'user';
+  ctx.reply(`🆔 Your Telegram ID: ${uid}\nUser: ${uname}`);
+});
+```
+
+Also useful — `/groupid` to get your group’s chat ID:
+```js
+bot.command('groupid', (ctx) => ctx.reply(`🆔 This chat ID: ${ctx.chat.id}`));
+```

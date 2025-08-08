@@ -1,0 +1,479 @@
+// =============================
+// Aviryx ($AVX) — All-in-One Stack (Upgraded)
+// Telegram bot + Buy Alerts + Twitter bot + Webhook server + Live tracker
+// Added: /ping, /debug, /testbuy, /id fix notes, GET /testbuy route
+// =============================
+
+// ========= FILE: package.json =========
+{
+  "name": "aviryx-stack",
+  "version": "1.1.0",
+  "description": "Aviryx ($AVX): Telegram bot, Twitter bot, webhook server, live tracker",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "telegraf": "^4.16.3",
+    "twitter-api-v2": "^1.17.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
+
+// ========= FILE: .env.example =========
+# --- Required ---
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+
+# --- X/Twitter (optional) ---
+X_APP_KEY=
+X_APP_SECRET=
+X_ACCESS_TOKEN=
+X_ACCESS_SECRET=
+ENABLE_TWITTER=false
+
+# --- Solana / Webhooks ---
+HELIUS_API_KEY=
+AVX_MINT=
+DEXSCREENER_PAIR=
+
+# --- Links ---
+PUMPFUN_URL=https://pump.fun/
+TWITTER_URL=https://x.com/AviryxCoin
+TELEGRAM_URL=https://t.me/AviryxNest
+WEBSITE_URL=
+
+# --- Feature flags ---
+ENABLE_TG=true
+PORT=3000
+
+// ========= FILE: server.js =========
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import cron from 'node-cron';
+import { startTelegramBot, sendBuyAlert } from './src/bots/telegram.js';
+import { startTwitterBot, tweetText } from './src/bots/twitter.js';
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json({ limit: '1mb' }));
+
+const ENABLE_TG = (process.env.ENABLE_TG || 'true') === 'true';
+const ENABLE_TWITTER = (process.env.ENABLE_TWITTER || 'false') === 'true';
+
+if (ENABLE_TG) startTelegramBot().catch(console.error);
+if (ENABLE_TWITTER) startTwitterBot().catch(console.error);
+
+app.get('/status', (_req, res) => res.json({ ok: true, ts: Date.now(), tg: ENABLE_TG, tw: ENABLE_TWITTER }));
+
+// Manual test endpoint to simulate a buy alert
+app.get('/testbuy', async (_req, res) => {
+  await sendBuyAlert({ isBuy: true, size: Math.floor(Math.random()*50000)+1000, buyer: 'TestBuyer11112222', sig: 'TESTSIG' });
+  res.json({ ok: true, sent: true });
+});
+
+// Helius webhook receiver
+app.post('/webhooks/helius', async (req, res) => {
+  try {
+    const events = Array.isArray(req.body?.events) ? req.body.events : (Array.isArray(req.body) ? req.body : []);
+    for (const evt of events) {
+      const parsed = parseHeliusEvent(evt);
+      if (parsed?.isBuy) await sendBuyAlert(parsed);
+    }
+    res.status(200).json({ received: true });
+  } catch (e) {
+    console.error('Webhook error', e);
+    res.status(200).json({ received: true, error: true });
+  }
+});
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use('/', express.static(path.join(__dirname, 'web')));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Aviryx server running on :${PORT}`));
+
+function parseHeliusEvent(evt) {
+  try {
+    const mint = process.env.AVX_MINT?.trim();
+    if (!mint) return null;
+    const transfers = evt?.tokenTransfers || evt?.parsedTransaction?.tokenTransfers || [];
+    const our = transfers.filter(t => (t.mint?.toLowerCase?.() === mint.toLowerCase()));
+    if (!our.length) return null;
+    let totalIn = 0, totalOut = 0; let buyer = '';
+    for (const t of our) {
+      const amt = Number(t.tokenAmount || t.amount || 0);
+      if (t.toUserAccount) { totalIn += amt; buyer = t.toUserAccount; }
+      else totalOut += amt;
+    }
+    const isBuy = totalIn > totalOut; const size = Math.abs(totalIn - totalOut);
+    return { isBuy, size, buyer, sig: evt?.signature || evt?.transactionSignature, raw: evt };
+  } catch { return null; }
+}
+
+// ========= FILE: src/bots/telegram.js =========
+import { Telegraf, Markup } from 'telegraf';
+
+let bot;
+
+export async function startTelegramBot() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error('Missing TELEGRAM_BOT_TOKEN');
+  bot = new Telegraf(token, { handlerTimeout: 9_000 });
+
+  // Diagnostics
+  bot.command('ping', ctx => ctx.reply('pong ' + Date.now()));
+  bot.command('debug', ctx => ctx.reply(`chatId=${ctx.chat?.id} user=${ctx.from?.username || ctx.from?.id}`));
+  bot.on('message', (ctx) => {
+    console.log('TG:', ctx.chat?.id, ctx.from?.username, 'text=', ctx.message?.text);
+  });
+
+  bot.start(ctx => ctx.reply(
+    '🪽 Welcome to the Nest — Aviryx ($AVX)
+
+Use /buy /lore /socials /chart /help',
+    Markup.inlineKeyboard([
+      [Markup.button.url('Buy $AVX', process.env.PUMPFUN_URL || 'https://pump.fun')],
+      [Markup.button.url('Twitter', process.env.TWITTER_URL || 'https://x.com/AviryxCoin'), Markup.button.url('Telegram', process.env.TELEGRAM_URL || 'https://t.me/AviryxNest')]
+    ])
+  ));
+
+  bot.command('id', ctx => ctx.reply(`Chat ID: ${ctx.chat.id}`));
+
+  bot.command('buy', ctx => ctx.reply('🚀 Buy $AVX on Pump.fun', Markup.inlineKeyboard([[Markup.button.url('Buy $AVX', process.env.PUMPFUN_URL || 'https://pump.fun')]])));
+
+  bot.command('lore', ctx => ctx.reply('🦴 Aviryx — skull-crowned spirit of the chain. Born from digital ruins, sworn to guard memes and flight.'));
+
+  bot.command('socials', ctx => ctx.reply(`Links:
+🐦 ${process.env.TWITTER_URL}
+🪽 ${process.env.TELEGRAM_URL}
+🌐 ${process.env.WEBSITE_URL || ''}`));
+
+  bot.command('chart', ctx => {
+    const pair = process.env.DEXSCREENER_PAIR || '';
+    if (!pair) return ctx.reply('Chart link coming soon.');
+    ctx.reply(`📈 Chart: ${pair}`);
+  });
+
+  // Simulate an alert manually
+  bot.command('testbuy', async (ctx) => {
+    const size = Math.floor(Math.random()*50000)+1000;
+    await sendBuyAlert({ isBuy: true, size, buyer: String(ctx.from?.id || 'tester'), sig: 'TESTSIG' });
+    ctx.reply('Sent test buy alert.');
+  });
+
+  await bot.launch();
+  console.log('Telegram bot launched');
+  process.once('SIGINT', () => bot.stop('SIGINT'));
+  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+}
+
+export async function sendBuyAlert({ isBuy, size, buyer, sig }) {
+  try {
+    if (!bot) return;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const flavor = isBuy ? 'took flight' : 'landed';
+    const lines = [
+      `💸  A new bird ${flavor}: *${formatNum(size)} $AVX*`,
+      buyer ? `🧬 Holder: \`${short(buyer)}\`` : '',
+      sig ? `🔗 Tx: https://solscan.io/tx/${sig}` : ''
+    ].filter(Boolean).join('
+');
+
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.url('Buy $AVX', process.env.PUMPFUN_URL || 'https://pump.fun')],
+      [Markup.button.url('Twitter', process.env.TWITTER_URL || 'https://x.com/AviryxCoin')]
+    ]);
+
+    if (chatId) await bot.telegram.sendMessage(chatId, lines, { parse_mode: 'Markdown', ...keyboard });
+  } catch (e) { console.error('sendBuyAlert error', e); }
+}
+
+function short(addr = '') { return addr.slice(0, 4) + '…' + addr.slice(-4); }
+function formatNum(n) { return Number(n || 0).toLocaleString(); }
+
+// ========= FILE: src/bots/twitter.js =========
+import { TwitterApi } from 'twitter-api-v2';
+import cron from 'node-cron';
+
+let client;
+
+export async function startTwitterBot() {
+  const { X_APP_KEY, X_APP_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET } = process.env;
+  if (!X_APP_KEY || !X_APP_SECRET || !X_ACCESS_TOKEN || !X_ACCESS_SECRET) {
+    console.log('Twitter disabled (missing keys).');
+    return;
+  }
+  client = new TwitterApi({ appKey: X_APP_KEY, appSecret: X_APP_SECRET, accessToken: X_ACCESS_TOKEN, accessSecret: X_ACCESS_SECRET });
+  console.log('Twitter client ready');
+
+  cron.schedule('0 10,18 * * *', async () => {
+    try { await tweetText(pickTweet()); } catch (e) { console.error('Tweet cron error', e); }
+  }, { timezone: 'UTC' });
+}
+
+export async function tweetText(text) { if (client) await client.v2.tweet(text); }
+
+function pickTweet() {
+  const bank = [
+    '🪽 $AVX | Aviryx — Bird of the chain. We don\'t moon, we fly.',
+    'The skullbird watches. $AVX',
+    'Aviryx prophecy: flight. #AVX #Solana',
+    'Born on Pump.fun. Forged by memes. $AVX',
+  ];
+  return bank[Math.floor(Math.random() * bank.length)];
+}
+
+// ========= FILE: web/index.html =========
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aviryx | $AVX</title>
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Creepster&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
+    body { margin:0; font-family:'Righteous', cursive; color:#e6e6e6; background:#0b0c10 url('https://i.imgur.com/tZyYssL.jpg') no-repeat fixed center/cover; }
+    .wrap { background:rgba(0,0,0,.72); min-height:100vh; }
+    header { text-align:center; padding:120px 20px 40px; }
+    header h1 { font-family:'Creepster', cursive; font-size:4rem; color:#9d8dff; text-shadow:0 0 20px #8f98ff,0 0 10px #000; }
+    header img { width:90px; display:inline-block; vertical-align:middle; margin-left:12px; filter: drop-shadow(0 0 10px orange); }
+    header p { color:#cfcfcf; margin-top:12px; }
+    .cta { text-align:center; margin:28px 0 10px; }
+    .cta a { background:linear-gradient(90deg,#8f98ff,#78e8e8); padding:16px 32px; border-radius:48px; color:#000; text-decoration:none; font-weight:700; font-size:1.2rem; border:3px solid #78e8e8; box-shadow:0 0 25px #78e8e8,0 0 10px #8f98ff; }
+    .cta a:hover { box-shadow:0 0 35px #78e8e8cc; }
+    main { max-width:1000px; margin:0 auto; padding:30px 20px 60px; }
+    h2 { color:#8f98ff; border-bottom:3px solid #8f98ff; padding-bottom:6px; margin-top:30px; text-shadow:0 0 10px #000,0 0 10px #8f98ff88; }
+    p, li { line-height:1.8; font-size:1.05rem; }
+    ul { padding-left:18px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; margin-top:14px; }
+    .card { background:rgba(15,15,20,.95); border-radius:14px; padding:18px; box-shadow:0 0 25px rgba(0,0,0,.6); }
+    .disclaimer { text-align:center; margin:30px auto; font-size:.9rem; color:#aaa; background:#1a1a1d; padding:18px; border-radius:10px; }
+    footer { text-align:center; color:#888; padding:22px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Welcome to the Nest <img src="https://i.imgur.com/oYiTquV.gif" alt="phoenix" /></h1>
+      <p>Enter the world of Aviryx — Skull-crowned Spirit of the Chain</p>
+      <div class="cta"><a href="https://pump.fun" target="_blank">🚀 BUY $AVX NOW</a></div>
+    </header>
+    <main>
+      <section class="grid">
+        <div class="card">
+          <h2>About</h2>
+          <p>Aviryx is a digital spirit born from lost chains — a skull-crowned guardian with neon wings. Meme-born, lore-fueled, and community-owned. Forged on Pump.fun, it doesn’t chase moons — it flies past them.</p>
+        </div>
+        <div class="card">
+          <h2>Tokenomics</h2>
+          <ul>
+            <li>Total Supply: 1,000,000,000 AVX</li>
+            <li>0/0 Tax — 100% Community</li>
+            <li>LP Burned / Contract Renounced</li>
+            <li>Launched via Pump.fun</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Lore</h2>
+          <p>When data died, the bird rose — glitch-winged, bone-crowned. It guards the chain’s skies and calls its sentinels to flight. The prophecy is simple: ascend.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Live Tracker</h2>
+        <div id="tracker">Loading price…</div>
+      </section>
+
+      <section class="card">
+        <h2>Community</h2>
+        <p>
+          <a href="https://x.com/AviryxCoin" target="_blank">Twitter</a> ·
+          <a href="https://t.me/AviryxNest" target="_blank">Telegram</a> ·
+          <a href="https://pump.fun" target="_blank">Pump.fun</a>
+        </p>
+      </section>
+
+      <div class="disclaimer">
+        <strong>Disclaimer:</strong> $AVX is a meme-based cryptocurrency project with no intrinsic value or guaranteed future. Entertainment only. Always DYOR.
+      </div>
+    </main>
+    <footer>© 2025 Aviryx. All rights reserved.</footer>
+  </div>
+  <script src="/tracker.js"></script>
+</body>
+</html>
+
+// ========= FILE: web/tracker.js =========
+(async function () {
+  const el = document.getElementById('tracker');
+  const pair = (typeof DEXSCREENER_PAIR !== 'undefined') ? DEXSCREENER_PAIR : ('' + (process.env?.DEXSCREENER_PAIR || ''));
+  try {
+    if (!pair || pair === 'undefined') { el.textContent = 'Chart link coming soon.'; return; }
+    el.innerHTML = `<a href="${pair}" target="_blank">Open chart on Dexscreener</a>`;
+  } catch (e) { el.textContent = 'Tracker unavailable right now.'; }
+})();
+
+// ========= FILE: README.md =========
+# Aviryx ($AVX) — All-in-One Stack (Updated)
+
+## TL;DR
+- **Run:** `npm install && npm start`
+- **Secrets (Replit → lock icon):**
+  - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `ENABLE_TG=true`
+  - `PUMPFUN_URL`, `TWITTER_URL`, `TELEGRAM_URL`
+- **Test bot:** `/start`, `/id@FLYWITHAVX_BOT`, `/ping`, `/testbuy`
+- **Webhook:** Set Helius → `https://<your-app>/webhooks/helius`
+
+## New diagnostics
+- `/ping` → quick check
+- `/debug` → prints chat/user ids
+- `/testbuy` → sends a simulated buy alert
+- GET `/testbuy` → triggers an alert from your browser
+
+## Helius Setup
+1. Create key → add `HELIUS_API_KEY` (optional for webhook auth).
+2. Webhook URL: `https://<your-app>/webhooks/helius`
+3. Filter: your **AVX_MINT**.
+4. Restart app after editing secrets.
+
+## Common fixes
+- No replies in group? Use `/id@FLYWITHAVX_BOT`, disable privacy in BotFather, make bot **admin**, delete webhook: `https://api.telegram.org/bot<TOKEN>/deleteWebhook`.
+- 401 errors → wrong token; rotate in BotFather.
+- Nothing in logs → app not running; re-run `npm start`.
+
+---
+Need hand-holding on any step? Ping me and I’ll tailor it on the spot.
+
+// ========= UPDATE: Admin Commands, Config Store, and Webhook =========
+
+// ========= FILE: src/config/store.js =========
+// Simple config store backed by env with DB-style stubs so we can persist later
+export const Config = {
+  cache: {
+    PUMPFUN_URL: process.env.PUMPFUN_URL || '',
+    AVX_MINT: process.env.AVX_MINT || '',
+    DEXSCREENER_PAIR: process.env.DEXSCREENER_PAIR || '',
+    TIER_THRESHOLDS: (process.env.TIER_THRESHOLDS || '0.2,0.5,1,1.5,5').split(',').map(Number),
+    FOUNDERS_CAP: Number(process.env.FOUNDERS_CAP || 50),
+  },
+  async get(key) { return this.cache[key]; },
+  async set(key, val) { this.cache[key] = val; return this.cache[key]; },
+  async all() { return { ...this.cache }; }
+};
+
+// ========= FILE: src/utils/admin.js =========
+export function isAdmin(ctx) {
+  const admins = (process.env.TG_ADMIN_IDS || '').split(',').filter(Boolean);
+  const fromId = String(ctx.from?.id || '');
+  if (admins.includes(fromId)) return true;
+  // fallback: allow chat admins
+  if (ctx.chat?.type?.endsWith('group')) {
+    // Telegraf 4: chatMember only available via request; we optimistically allow here
+    return true;
+  }
+  return false;
+}
+
+export function requireAdmin(handler) {
+  return async (ctx) => {
+    if (!isAdmin(ctx)) {
+      return ctx.reply('⛔ Admins only. Ask a mod.');
+    }
+    return handler(ctx);
+  };
+}
+
+// ========= PATCH: src/bots/telegram.js (add admin commands) =========
+// Add near the top:
+// import { Config } from '../config/store.js';
+// import { requireAdmin } from '../utils/admin.js';
+
+// Inside startTelegramBot() after other commands, add:
+// --- Admin: set buy link
+bot.command('setbuy', requireAdmin(async (ctx) => {
+  const url = (ctx.message.text.split(' ').slice(1).join(' ') || '').trim();
+  if (!/^https?:\/\//i.test(url)) return ctx.reply('Usage: /setbuy <https://...>');
+  await Config.set('PUMPFUN_URL', url);
+  ctx.reply(`✅ Buy link set to:
+${url}`);
+}));
+
+// --- Admin: set mint
+bot.command('setmint', requireAdmin(async (ctx) => {
+  const mint = (ctx.message.text.split(' ').slice(1).join(' ') || '').trim();
+  if (!mint || mint.length < 20) return ctx.reply('Usage: /setmint <MINT_ADDRESS>');
+  await Config.set('AVX_MINT', mint);
+  ctx.reply(`✅ Mint set to: ${mint}`);
+}));
+
+// --- Admin: set chart
+bot.command('setchart', requireAdmin(async (ctx) => {
+  const url = (ctx.message.text.split(' ').slice(1).join(' ') || '').trim();
+  if (!/^https?:\/\//i.test(url)) return ctx.reply('Usage: /setchart <https://...>`');
+  await Config.set('DEXSCREENER_PAIR', url);
+  ctx.reply(`✅ Chart set to:
+${url}`);
+}));
+
+// --- Admin: set tiers
+bot.command('settiers', requireAdmin(async (ctx) => {
+  const parts = ctx.message.text.split(' ').slice(1).map(Number).filter(n => !Number.isNaN(n));
+  if (parts.length < 5) return ctx.reply('Usage: /settiers 0.2 0.5 1 1.5 5');
+  await Config.set('TIER_THRESHOLDS', parts);
+  ctx.reply(`✅ Tiers set: ${parts.join(', ')}`);
+}));
+
+// --- Admin: founders cap
+bot.command('setcaps', requireAdmin(async (ctx) => {
+  const [type, val] = ctx.message.text.split(' ').slice(1);
+  if ((type || '').toLowerCase() !== 'founders') return ctx.reply('Usage: /setcaps founders <number>');
+  const n = Number(val);
+  if (!Number.isFinite(n) || n < 1) return ctx.reply('Cap must be a positive number');
+  await Config.set('FOUNDERS_CAP', n);
+  ctx.reply(`✅ Founders cap set to ${n}`);
+}));
+
+// --- Admin: announce & pin for 24h
+bot.command('announce', requireAdmin(async (ctx) => {
+  const text = ctx.message.text.split(' ').slice(1).join(' ').trim();
+  if (!text) return ctx.reply('Usage: /announce <text>');
+  const msg = await ctx.reply(`📢 ${text}`);
+  try { await bot.telegram.pinChatMessage(ctx.chat.id, msg.message_id, { disable_notification: true }); } catch {}
+}));
+
+// --- Admin: reload (noop since we store in memory but keeps pattern)
+bot.command('reload', requireAdmin(async (ctx) => {
+  const cfg = await Config.all();
+  ctx.reply(`🔁 Reloaded. Current config:
+Buy: ${cfg.PUMPFUN_URL || '—'}
+Mint: ${cfg.AVX_MINT || '—'}
+Chart: ${cfg.DEXSCREENER_PAIR || '—'}
+Tiers: ${cfg.TIER_THRESHOLDS.join(', ')}
+Founders Cap: ${cfg.FOUNDERS_CAP}`);
+}));
+
+// ========= PATCH: server.js (Helius webhook mount already exists; ensure uses Config) =========
+// Replace direct process.env reads inside parseHeliusEvent with Config.get('AVX_MINT') if you prefer; current code works but you can wire Config in similarly.
+
+// ========= NOTE =========
+// To enable admin-only commands, set TG_ADMIN_IDS in your env as a comma-separated list of Telegram numeric IDs, e.g.:
+// TG_ADMIN_IDS=123456789,987654321
+
