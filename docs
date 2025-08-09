@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />(async function () {
+  const el = document.getElementById('tracker');
+  const pair = (typeof DEXSCREENER_PAIR !== 'undefined') ? DEXSCREENER_PAIR : ('' + (process.env?.DEXSCREENER_PAIR || ''));
+  try {
+    if (!pair || pair === 'undefined') { el.textContent = 'Chart link coming soon.'; return; }
+    el.innerHTML = `<a href="${pair}" target="_blank">Open chart on Dexscreener</a>`;
+  } catch (e) { el.textContent = 'Tracker unavailable right now.'; }
+})();
+  <title>Aviryx | $AVX</title><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aviryx Bot Privacy Policy</title>
+  <style>
+    body {
+      background-color: #0b0b0b;
+      color: #e5e5e5;
+      font-family: 'Trebuchet MS', sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 30px;
+      line-height: 1.6;
+      background-image: url('images/skullbird-watermark.png');
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 400px;
+      background-attachment: fixed;
+    }
+    h1 {
+      color: #a78bfa;
+      border-bottom: 2px solid #a78bfa;
+      padding-bottom: 5px;
+      text-shadow: 0 0 6px #a78bfa, 0 0 15px #60a5fa;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 2.4rem;
+    }
+    h1 img {
+      width: 70px;
+      height: 70px;
+    }
+    h2 {
+      color: #a78bfa;
+      border-bottom: 2px solid #a78bfa;
+      padding-bottom: 5px;
+      text-shadow: 0 0 5px #a78bfa, 0 0 10px #60a5fa;
+      font-size: 1.6rem;
+    }
+    a {
+      color: #60a5fa;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+    a:hover {
+      text-shadow: 0 0 8px #ff6b00, 0 0 15px #ff9f43;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    p, li {
+      font-size: 1.15rem;
+    }
+  </style>
+</head>
+<body>
+  <h1><img src="images/flaming-skullbird-icon.png" alt="Flaming Skullbird Icon" />Privacy Policy for Aviryx Bot</h1>
+  <p><em>Last Updated: August 2025</em></p>
+
+  <h2>1. Information We Collect</h2>
+  <p>We may temporarily receive:</p>
+  <ul>
+    <li>Your Telegram user ID</li>
+    <li>Your public username and display name</li>
+    <li>Messages you send to the Bot or in groups where the Bot is active</li>
+  </ul>
+
+  <h2>2. How We Use Your Information</h2>
+  <ul>
+    <li>To execute commands you send to the Bot</li>
+    <li>To moderate the group and prevent spam/scams</li>
+    <li>To improve community safety and engagement</li>
+  </ul>
+
+  <h2>3. Data Sharing</h2>
+  <p>We do not sell or rent your data. Hosting services may process data solely to operate the Bot.</p>
+
+  <h2>4. Data Retention</h2>
+  <p>We do not permanently store personal data. Temporary logs may be kept for moderation/debugging, then deleted.</p>
+
+  <h2>5. Your Rights</h2>
+  <p>You can request deletion of your data by contacting us via our 
+     <a href="https://t.me/AviryxNest">Telegram group</a>.
+  </p>
+
+  <h2>6. Contact</h2>
+  <p>Questions? Reach out at 
+     <a href="https://t.me/AviryxNest">https://t.me/AviryxNest</a>.
+  </p>
+
+  <footer style="margin-top: 40px; text-align: center; font-size: 1rem; color: #999;">
+    <a href="index.html">🏠 Back to Aviryx Home</a> | 
+    <a href="privacy.html">📜 Privacy Policy</a>
+  </footer>
+</body>
+</html>
+
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Creepster&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
+    body { margin:0; font-family:'Righteous', cursive; color:#e6e6e6; background:#0b0c10 url('https://i.imgur.com/tZyYssL.jpg') no-repeat fixed center/cover; }
+    .wrap { background:rgba(0,0,0,.72); min-height:100vh; }
+    header { text-align:center; padding:120px 20px 40px; }
+    header h1 { font-family:'Creepster', cursive; font-size:4rem; color:#9d8dff; text-shadow:0 0 20px #8f98ff,0 0 10px #000; }
+    header img { width:90px; display:inline-block; vertical-align:middle; margin-left:12px; filter: drop-shadow(0 0 10px orange); }
+    header p { color:#cfcfcf; margin-top:12px; }
+    .cta { text-align:center; margin:28px 0 10px; }
+    .cta a { background:linear-gradient(90deg,#8f98ff,#78e8e8); padding:16px 32px; border-radius:48px; color:#000; text-decoration:none; font-weight:700; font-size:1.2rem; border:3px solid #78e8e8; box-shadow:0 0 25px #78e8e8,0 0 10px #8f98ff; }
+    .cta a:hover { box-shadow:0 0 35px #78e8e8cc; }
+    main { max-width:1000px; margin:0 auto; padding:30px 20px 60px; }
+    h2 { color:#8f98ff; border-bottom:3px solid #8f98ff; padding-bottom:6px; margin-top:30px; text-shadow:0 0 10px #000,0 0 10px #8f98ff88; }
+    p, li { line-height:1.8; font-size:1.05rem; }
+    ul { padding-left:18px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; margin-top:14px; }
+    .card { background:rgba(15,15,20,.95); border-radius:14px; padding:18px; box-shadow:0 0 25px rgba(0,0,0,.6); }
+    .disclaimer { text-align:center; margin:30px auto; font-size:.9rem; color:#aaa; background:#1a1a1d; padding:18px; border-radius:10px; }
+    footer { text-align:center; color:#888; padding:22px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Welcome to the Nest <img src="https://i.imgur.com/oYiTquV.gif" alt="phoenix" /></h1>
+      <p>Enter the world of Aviryx — Skull-crowned Spirit of the Chain</p>
+      <div class="cta"><a href="https://pump.fun" target="_blank">🚀 BUY $AVX NOW</a></div>
+    </header>
+    <main>
+      <section class="grid">
+        <div class="card">
+          <h2>About</h2>
+          <p>Aviryx is a digital spirit born from lost chains — a skull-crowned guardian with neon wings. Meme-born, lore-fueled, and community-owned. Forged on Pump.fun, it doesn’t chase moons — it flies past them.</p>
+        </div>
+        <div class="card">
+          <h2>Tokenomics</h2>
+          <ul>
+            <li>Total Supply: 1,000,000,000 AVX</li>
+            <li>0/0 Tax — 100% Community</li>
+            <li>LP Burned / Contract Renounced</li>
+            <li>Launched via Pump.fun</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Lore</h2>
+          <p>When data died, the bird rose — glitch-winged, bone-crowned. It guards the chain’s skies and calls its sentinels to flight. The prophecy is simple: ascend.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Live Tracker</h2>
+        <div id="tracker">Loading price…</div>
+      </section>
+
+      <section class="card">
+        <h2>Community</h2>
+        <p>
+          <a href="https://x.com/AviryxCoin" target="_blank">Twitter</a> ·
+          <a href="https://t.me/AviryxNest" target="_blank">Telegram</a> ·
+          <a href="https://pump.fun" target="_blank">Pump.fun</a>
+        </p>
+      </section>
+
+      <div class="disclaimer">
+        <strong>Disclaimer:</strong> $AVX is a meme-based cryptocurrency project with no intrinsic value or guaranteed future. Entertainment only. Always DYOR.
+      </div>
+    </main>
+    <footer>© 2025 Aviryx. All rights reserved.</footer>
+  </div>
+  <script src="tracker.js"></script>
+</body>
+</html>
